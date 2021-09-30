@@ -51,10 +51,16 @@ def print_paragraph(data):
             # first heading is title
             heading_level = style['headingLevel'] + 1
             text = f'{"#" * heading_level} {text}'
-        if 'list' in style and style['list']['type'] == 'checkBox':
-            text = f'- [ ] {text}'
-        elif 'list' in style and style['list']['type'] == 'checkedBox':
-            text = f'- [x] {text}'
+        if 'list' in style:
+            l = style['list']
+            if l['type'] == 'checkBox':
+                text = f'- [ ] {text}'
+            elif l['type'] == 'checkedBox':
+                text = f'- [x] {text}'
+            elif l['type'] == 'number':
+                text = f'{l["number"]}. {text}'
+            elif l['type'] == 'bullet':
+                text = f'- {text}'
     return text
 
 def walk(data):
