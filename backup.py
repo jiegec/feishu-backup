@@ -44,7 +44,6 @@ def print_paragraph(data):
     text = ''
     for element in paragraph['elements']:
         text += walk(element)
-        text += '\n'
     if 'style' in paragraph:
         style = paragraph['style']
         if 'headingLevel' in style:
@@ -83,6 +82,7 @@ def save_doc(path, content):
     for block in blocks:
         print(block)
         text += walk(block)
+        text += '\n'
     with open(f'{backup_path}{path}', 'w') as f:
         f.write(text)
 
