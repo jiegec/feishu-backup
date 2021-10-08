@@ -113,7 +113,7 @@ def save_doc(path, file_name, content):
             continue
         with open(f'{backup_path}{path}/{file_name}', "wb") as file:
             url = f'https://open.feishu.cn/open-apis/drive/v1/medias/{token}/download'
-            print('Downloading image {token}')
+            print(f'Downloading image {token}')
             resp = requests.get(url, headers={
                 'Authorization': f'Bearer {user_access_token}'
             })
