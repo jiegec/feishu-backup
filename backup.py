@@ -1,10 +1,13 @@
 import requests
 import sys
 import json
+import os
 from urllib.parse import quote
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from secret import *
+
+# docs: https://open.feishu.cn/document/ukTMukTMukTM/uczNzUjL3czM14yN3MTN
 
 # get app_access_token and tenant_access_token
 resp = requests.post('https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal', json={
@@ -35,56 +38,86 @@ redirect_uri = quote('http://127.0.0.1:8888/backup')
 url = f'https://open.feishu.cn/open-apis/authen/v1/index?redirect_uri={redirect_uri}&app_id={app_id}&state={state}'
 print(f'Please open {url} in browser')
 
-def print_text_run(data):
-    text_run = data['textRun']
-    return text_run['text']
+class Dumper:
+    def __init__(self) -> None:
+        self.image_tokens = []
 
-def print_paragraph(data):
-    paragraph = data['paragraph']
-    text = ''
-    for element in paragraph['elements']:
-        text += walk(element)
-    if 'style' in paragraph:
-        style = paragraph['style']
-        if 'headingLevel' in style:
-            # first heading is title
-            heading_level = style['headingLevel'] + 1
-            text = f'{"#" * heading_level} {text}'
-        if 'list' in style:
-            l = style['list']
-            if l['type'] == 'checkBox':
-                text = f'- [ ] {text}'
-            elif l['type'] == 'checkedBox':
-                text = f'- [x] {text}'
-            elif l['type'] == 'number':
-                text = f'{l["number"]}. {text}'
-            elif l['type'] == 'bullet':
-                text = f'- {text}'
-    return text
+    def print_text_run(self, data) -> str:
+        text_run = data['textRun']
+        return text_run['text']
 
-def walk(data):
-    if data['type'] == 'paragraph':
-        return print_paragraph(data)
-    elif data['type'] == 'textRun':
-        return print_text_run(data)
-    else:
-        print(f'Unhandled data type {data["type"]}')
-        return ''
+    def print_paragraph(self, data) -> str:
+        paragraph = data['paragraph']
+        text = ''
+        for element in paragraph['elements']:
+            text += self.walk(element)
+        if 'style' in paragraph:
+            style = paragraph['style']
+            if 'headingLevel' in style:
+                # first heading is title
+                heading_level = style['headingLevel'] + 1
+                text = f'{"#" * heading_level} {text}'
+            if 'list' in style:
+                l = style['list']
+                if l['type'] == 'checkBox':
+                    text = f'- [ ] {text}'
+                elif l['type'] == 'checkedBox':
+                    text = f'- [x] {text}'
+                elif l['type'] == 'number':
+                    text = f'{l["number"]}. {text}'
+                elif l['type'] == 'bullet':
+                    text = f'- {text}'
+        return text
 
-def save_doc(path, content):
+    def print_gallery(self, data) -> str:
+        images = data['gallery']['imageList']
+        text = ''
+        for image in images:
+            token = image['fileToken']
+            file_name = f'{token}.png'
+            self.image_tokens.append(token)
+            text += f'![]({file_name})'
+        return text
+
+    def walk(self, data):
+        if data['type'] == 'paragraph':
+            return self.print_paragraph(data)
+        elif data['type'] == 'textRun':
+            return self.print_text_run(data)
+        elif data['type'] == 'gallery':
+            return self.print_gallery(data)
+        else:
+            print(f'Unhandled data type {data["type"]}')
+            print(data)
+            return ''
+
+def save_doc(path, file_name, content):
+    dumper = Dumper()
     content = json.loads(content)
     title = content['title']['elements']
     text = ''
     for element in title:
-        text += f'# {walk(element)}'
+        text += f'# {dumper.walk(element)}'
     text += '\n'
     blocks = content['body']['blocks']
     for block in blocks:
-        print(block)
-        text += walk(block)
+        text += dumper.walk(block)
         text += '\n'
-    with open(f'{backup_path}{path}', 'w') as f:
+    with open(f'{backup_path}{path}/{file_name}', 'w') as f:
         f.write(text)
+
+    for token in dumper.image_tokens:
+        file_name = f'{token}.png'
+        file_path = f'{backup_path}{path}/{file_name}'
+        if os.path.exists(file_path):
+            continue
+        with open(f'{backup_path}{path}/{file_name}', "wb") as file:
+            url = f'https://open.feishu.cn/open-apis/drive/v1/medias/{token}/download'
+            print('Downloading image {token}')
+            resp = requests.get(url, headers={
+                'Authorization': f'Bearer {user_access_token}'
+            })
+            file.write(resp.content)
 
 def list_folder(path, token):
     children = get(
@@ -99,7 +132,7 @@ def list_folder(path, token):
             print(f'Downloading {abs_path}')
             file = get(
                 f'https://open.feishu.cn/open-apis/doc/v2/{data["token"]}/content', user_access_token)
-            save_doc(abs_path, file['content'])
+            save_doc(path, f'{data["name"]}.md', file['content'])
 
 
 class Server(BaseHTTPRequestHandler):
