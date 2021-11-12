@@ -19,6 +19,9 @@ app_access_token = resp['app_access_token']
 tenant_access_token = resp['tenant_access_token']
 user_access_token = ''
 
+print('Tenant Access Token:', tenant_access_token)
+print('App Access Token:', app_access_token)
+
 # utility
 
 
@@ -103,6 +106,7 @@ def save_doc(path, file_name, content):
     for block in blocks:
         text += dumper.walk(block)
         text += '\n'
+    os.makedirs(f'{backup_path}{path}', exist_ok=True)
     with open(f'{backup_path}{path}/{file_name}', 'w') as f:
         f.write(text)
 
@@ -158,12 +162,35 @@ class Server(BaseHTTPRequestHandler):
         global user_access_token
         user_access_token = resp['data']['access_token']
 
+        # list documents
         root_folder = get(
             'https://open.feishu.cn/open-apis/drive/explorer/v2/root_folder/meta', user_access_token)
         folder_token = root_folder["token"]
-        print(f'Root folder token: {folder_token}, id: {root_folder["id"]}')
+        # print(f'Found Root folder token: {folder_token}, id: {root_folder["id"]}')
 
         list_folder('', folder_token)
+
+        # list wikis
+        # TODO: paging
+        wikis = get(
+            'https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=10', user_access_token)
+        for item in wikis['items']:
+            space_name = item['name']
+            print(f'Found wiki space {space_name}')
+            space_id = item['space_id']
+
+            # get nodes
+            nodes = get(
+                f'https://open.feishu.cn/open-apis/wiki/v2/spaces/{space_id}/nodes?page_size=10', user_access_token)
+            for item in nodes['items']:
+                if item['obj_type'] == 'doc':
+                    path = f'/知识库/{space_name}'
+                    abs_path = f'{path}/{item["title"]}.md'
+                    print(f'Downloading {abs_path}')
+                    file = get(
+                        f'https://open.feishu.cn/open-apis/doc/v2/{item["obj_token"]}/content', user_access_token)
+                    save_doc(path, f'{item["title"]}.md', file['content'])
+
 
 
 server_address = ('', 8888)
