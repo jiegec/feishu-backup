@@ -1,3 +1,4 @@
+from typing import List
 import requests
 import sys
 import json
@@ -40,6 +41,20 @@ state = 'backup'
 redirect_uri = quote('http://127.0.0.1:8888/backup')
 url = f'https://open.feishu.cn/open-apis/authen/v1/index?redirect_uri={redirect_uri}&app_id={app_id}&state={state}'
 print(f'Please open {url} in browser')
+
+def render_markdown_table(data: List[List[str]]) -> str:
+    text = ''
+    for i, row in enumerate(data):
+        text += '| '
+        text += ' | '.join(map(str, row)) # convert to string if necessary
+        text += ' |\n'
+
+        # separator
+        if i == 0:
+            text += '|'
+            text += '-|' * len(row)
+            text += '\n'
+    return text
 
 class Dumper:
     def __init__(self) -> None:
@@ -101,17 +116,18 @@ class Dumper:
             table_data.append(row_data)
 
         # print table
-        for i, row in enumerate(table_data):
-            text += '| '
-            text += ' | '.join(row)
-            text += ' |\n'
+        return render_markdown_table(table_data)
 
-            # separator
-            if i == 0:
-                text += '|'
-                text += '-|' * len(row)
-                text += '\n'
-        return text
+    def print_sheet(self, data) -> str:
+        sheet_token = data['sheet']['token']
+        # first part is token
+        token = sheet_token.split('_')[0]
+        # second part is sheet id
+        sheet_id = sheet_token.split('_')[1]
+        content = get(
+            f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/values/{sheet_id}', user_access_token)
+        values = content['valueRange']['values']
+        return render_markdown_table(values)
 
     def walk(self, data):
         if data['type'] == 'paragraph':
@@ -122,6 +138,8 @@ class Dumper:
             return self.print_gallery(data)
         elif data['type'] == 'table':
             return self.print_table(data)
+        elif data['type'] == 'sheet':
+            return self.print_sheet(data)
         else:
             print(f'Unhandled data type {data["type"]}')
             print(data)
