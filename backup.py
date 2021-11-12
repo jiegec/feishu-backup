@@ -82,6 +82,37 @@ class Dumper:
             text += f'![]({file_name})'
         return text
 
+    def print_table(self, data) -> str:
+        rows = data['table']['tableRows']
+        text = ''
+        table_data = []
+        for row in rows:
+            cells = row['tableCells']
+            row_data = []
+            for cell in cells:
+                body = cell['body']
+                blocks = body['blocks']
+                cell_content = ''
+                if blocks != None:
+                    for block in blocks:
+                        cell_content += self.walk(block)
+
+                row_data.append(cell_content)
+            table_data.append(row_data)
+
+        # print table
+        for i, row in enumerate(table_data):
+            text += '| '
+            text += ' | '.join(row)
+            text += ' |\n'
+
+            # separator
+            if i == 0:
+                text += '|'
+                text += '-|' * len(row)
+                text += '\n'
+        return text
+
     def walk(self, data):
         if data['type'] == 'paragraph':
             return self.print_paragraph(data)
@@ -89,6 +120,8 @@ class Dumper:
             return self.print_text_run(data)
         elif data['type'] == 'gallery':
             return self.print_gallery(data)
+        elif data['type'] == 'table':
+            return self.print_table(data)
         else:
             print(f'Unhandled data type {data["type"]}')
             print(data)
