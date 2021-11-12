@@ -125,7 +125,7 @@ class Dumper:
         # second part is sheet id
         sheet_id = sheet_token.split('_')[1]
         content = get(
-            f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/values/{sheet_id}', user_access_token)
+            f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/values/{sheet_id}?dateTimeRenderOption=FormattedString', user_access_token)
         values = content['valueRange']['values']
         return render_markdown_table(values)
 
