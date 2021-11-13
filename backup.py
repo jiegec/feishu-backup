@@ -174,6 +174,24 @@ def save_doc(path, file_name, content):
             })
             file.write(resp.content)
 
+def save_sheet(path, file_name, token):
+    metainfo = get(
+        f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/metainfo', user_access_token)
+    sheets = metainfo['sheets']
+    text = ''
+    for sheet in sheets:
+        sheet_id = sheet['sheetId']
+
+        text += f'# {sheet["title"]}\n'
+        content = get(
+            f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/values/{sheet_id}?dateTimeRenderOption=FormattedString', user_access_token)
+        values = content['valueRange']['values']
+        text += render_markdown_table(values)
+
+    os.makedirs(f'{backup_path}{path}', exist_ok=True)
+    with open(f'{backup_path}{path}/{file_name}', 'w') as f:
+        f.write(text)
+
 def list_folder(path, token):
     children = get(
         f'https://open.feishu.cn/open-apis/drive/explorer/v2/folder/{token}/children', user_access_token)
@@ -185,9 +203,14 @@ def list_folder(path, token):
         else:
             abs_path = f'{path}/{data["name"]}.md'
             print(f'Downloading {abs_path}')
-            file = get(
-                f'https://open.feishu.cn/open-apis/doc/v2/{data["token"]}/content', user_access_token)
-            save_doc(path, f'{data["name"]}.md', file['content'])
+            if data['type'] == 'doc':
+                file = get(
+                    f'https://open.feishu.cn/open-apis/doc/v2/{data["token"]}/content', user_access_token)
+                save_doc(path, f'{data["name"]}.md', file['content'])
+            elif data['type'] == 'sheet':
+                save_sheet(path, f'{data["name"]}.md', data['token'])
+            else:
+                print(f'Unsupported type: {data["type"]}')
 
 
 class Server(BaseHTTPRequestHandler):
