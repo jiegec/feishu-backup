@@ -42,12 +42,24 @@ redirect_uri = quote('http://127.0.0.1:8888/backup')
 url = f'https://open.feishu.cn/open-apis/authen/v1/index?redirect_uri={redirect_uri}&app_id={app_id}&state={state}'
 print(f'Please open {url} in browser')
 
+# doc spec
+# https://open.feishu.cn/document/ukTMukTMukTM/uAzM5YjLwMTO24CMzkjN
+
+
 def render_markdown_table(data: List[List[str]]) -> str:
     text = ''
     for i, row in enumerate(data):
-        text += '| '
-        text += ' | '.join(map(str, row)) # convert to string if necessary
-        text += ' |\n'
+        text += '|'
+        for col in row:
+            text += ' '
+            if isinstance(col, list):
+                # text run
+                text += ''.join(map(lambda v: v['text'], col))
+            else:
+                # string/number
+                text += str(col)
+            text += ' |'
+        text += '\n'
 
         # separator
         if i == 0:
@@ -55,6 +67,7 @@ def render_markdown_table(data: List[List[str]]) -> str:
             text += '-|' * len(row)
             text += '\n'
     return text
+
 
 class Dumper:
     def __init__(self) -> None:
@@ -127,6 +140,7 @@ class Dumper:
         content = get(
             f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/values/{sheet_id}?dateTimeRenderOption=FormattedString', user_access_token)
         values = content['valueRange']['values']
+        print(values)
         return render_markdown_table(values)
 
     def walk(self, data):
@@ -144,6 +158,7 @@ class Dumper:
             print(f'Unhandled data type {data["type"]}')
             print(data)
             return ''
+
 
 def save_doc(path, file_name, content):
     dumper = Dumper()
@@ -174,6 +189,7 @@ def save_doc(path, file_name, content):
             })
             file.write(resp.content)
 
+
 def save_sheet(path, file_name, token):
     metainfo = get(
         f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/metainfo', user_access_token)
@@ -191,6 +207,7 @@ def save_sheet(path, file_name, token):
     os.makedirs(f'{backup_path}{path}', exist_ok=True)
     with open(f'{backup_path}{path}/{file_name}', 'w') as f:
         f.write(text)
+
 
 def list_folder(path, token):
     children = get(
@@ -264,7 +281,6 @@ class Server(BaseHTTPRequestHandler):
                     file = get(
                         f'https://open.feishu.cn/open-apis/doc/v2/{item["obj_token"]}/content', user_access_token)
                     save_doc(path, f'{item["title"]}.md', file['content'])
-
 
 
 server_address = ('', 8888)
