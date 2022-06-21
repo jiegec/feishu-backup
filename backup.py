@@ -140,7 +140,7 @@ class Dumper:
         content = get(
             f'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{token}/values/{sheet_id}?dateTimeRenderOption=FormattedString', user_access_token)
         values = content['valueRange']['values']
-        print(values)
+        # print(values)
         return render_markdown_table(values)
 
     def walk(self, data):
