@@ -3,6 +3,8 @@ import requests
 import sys
 import json
 import os
+import argparse
+
 from urllib.parse import quote
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -10,18 +12,26 @@ from secret import *
 
 # docs: https://open.feishu.cn/document/ukTMukTMukTM/uczNzUjL3czM14yN3MTN
 
-# get app_access_token and tenant_access_token
-resp = requests.post('https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal', json={
-    'app_id': app_id,
-    'app_secret': app_secret
-}).json()
-
-app_access_token = resp['app_access_token']
-tenant_access_token = resp['tenant_access_token']
+app_access_token = ''
+tenant_access_token = ''
 user_access_token = ''
+filter = None
 
-print('Tenant Access Token:', tenant_access_token)
-print('App Access Token:', app_access_token)
+def init():
+    # get app_access_token and tenant_access_token
+    resp = requests.post('https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal', json={
+        'app_id': app_id,
+        'app_secret': app_secret
+    }).json()
+
+    global app_access_token
+    app_access_token = resp['app_access_token']
+
+    global tenant_access_token
+    tenant_access_token = resp['tenant_access_token']
+
+    print('Tenant Access Token:', tenant_access_token)
+    print('App Access Token:', app_access_token)
 
 # utility
 
@@ -219,6 +229,12 @@ def list_folder(path, token):
             list_folder(f'{path}/{data["name"]}', token)
         else:
             abs_path = f'{path}/{data["name"]}.md'
+            # filter
+            if filter is not None:
+                if token != filter:
+                    print(f'Skipping {abs_path}: token {token} not matching')
+                    continue
+
             print(f'Downloading {abs_path}')
             if data['type'] == 'doc':
                 file = get(
@@ -282,13 +298,24 @@ class Server(BaseHTTPRequestHandler):
                         f'https://open.feishu.cn/open-apis/doc/v2/{item["obj_token"]}/content', user_access_token)
                     save_doc(path, f'{item["title"]}.md', file['content'])
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Backup feishu documents')
+    parser.add_argument('--only', dest='filter', nargs=1,
+                        help='only download the files matching the token')
 
-server_address = ('', 8888)
-httpd = HTTPServer(server_address, Server)
-try:
-    httpd.serve_forever()
-except KeyboardInterrupt:
-    pass
-httpd.server_close()
+    args = parser.parse_args()
 
-code = input()
+    if 'filter' in args:
+        filter = args.filter[0]
+        print(f'Only download file with id={filter}')
+
+    init()
+    server_address = ('', 8888)
+    httpd = HTTPServer(server_address, Server)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    httpd.server_close()
+
+    code = input()
