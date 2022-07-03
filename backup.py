@@ -231,7 +231,7 @@ def list_folder(path, token):
             abs_path = f'{path}/{data["name"]}.md'
             # filter
             if filter is not None:
-                if token != filter:
+                if token not in filter:
                     print(f'Skipping {abs_path}: token {token} not matching')
                     continue
 
@@ -300,14 +300,14 @@ class Server(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Backup feishu documents')
-    parser.add_argument('--only', dest='filter', nargs=1,
+    parser.add_argument('--only', dest='filter', nargs='+',
                         help='only download the files matching the token')
 
     args = parser.parse_args()
 
     if 'filter' in args:
-        filter = args.filter[0]
-        print(f'Only download file with id={filter}')
+        filter = args.filter
+        print(f'Only download file with id in {filter}')
 
     init()
     server_address = ('', 8888)
