@@ -17,6 +17,7 @@ tenant_access_token = ''
 user_access_token = ''
 filter = None
 
+
 def init():
     # get app_access_token and tenant_access_token
     resp = requests.post('https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal', json={
@@ -204,17 +205,18 @@ def save_doc(path, file_name, token):
             })
             file.write(resp.content)
 
+
 def save_docx(path, file_name, token):
     # fetch content
+    # https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/document-docx/docx-v1/document-block/get
     # TODO: handle paging
     file = get(
         f'https://open.feishu.cn/open-apis/docx/v1/documents/{token}/blocks', user_access_token)
 
-    dumper = Dumper()
-
     content = file['items']
     text = ''
     for block in content:
+        # https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/document-docx/docx-structure#2c5327a4
         block_type = block['block_type']
         if block_type == 1:
             # page
@@ -229,7 +231,7 @@ def save_docx(path, file_name, token):
             text += '\n'
         else:
             print(f'Unhandled block type {block_type}')
-    
+
     os.makedirs(f'{backup_path}{path}', exist_ok=True)
     with open(f'{backup_path}{path}/{file_name}', 'w') as f:
         f.write(text)
@@ -336,6 +338,7 @@ class Server(BaseHTTPRequestHandler):
                     file = get(
                         f'https://open.feishu.cn/open-apis/doc/v2/{item["obj_token"]}/content', user_access_token)
                     save_doc(path, f'{item["title"]}.md', file['content'])
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Backup feishu documents')
