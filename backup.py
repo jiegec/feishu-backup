@@ -170,7 +170,12 @@ class Dumper:
             return ''
 
 
-def save_doc(path, file_name, content):
+def save_doc(path, file_name, token):
+    # fetch content
+    file = get(
+        f'https://open.feishu.cn/open-apis/doc/v2/{token}/content', user_access_token)
+    content = file['content']
+
     dumper = Dumper()
     content = json.loads(content)
     title = content['title']['elements']
@@ -198,6 +203,36 @@ def save_doc(path, file_name, content):
                 'Authorization': f'Bearer {user_access_token}'
             })
             file.write(resp.content)
+
+def save_docx(path, file_name, token):
+    # fetch content
+    # TODO: handle paging
+    file = get(
+        f'https://open.feishu.cn/open-apis/docx/v1/documents/{token}/blocks', user_access_token)
+
+    dumper = Dumper()
+
+    content = file['items']
+    text = ''
+    for block in content:
+        block_type = block['block_type']
+        if block_type == 1:
+            # page
+            text += '# '
+            for text_run in block['page']['elements']:
+                text += text_run['text_run']['content']
+            text += '\n'
+        elif block_type == 2:
+            # text
+            for text_run in block['text']['elements']:
+                text += text_run['text_run']['content']
+            text += '\n'
+        else:
+            print(f'Unhandled block type {block_type}')
+    
+    os.makedirs(f'{backup_path}{path}', exist_ok=True)
+    with open(f'{backup_path}{path}/{file_name}', 'w') as f:
+        f.write(text)
 
 
 def save_sheet(path, file_name, token):
@@ -236,12 +271,16 @@ def list_folder(path, token):
                     continue
 
             print(f'Downloading {abs_path}')
+            file_name = f'{data["name"]}.md'
             if data['type'] == 'doc':
-                file = get(
-                    f'https://open.feishu.cn/open-apis/doc/v2/{data["token"]}/content', user_access_token)
-                save_doc(path, f'{data["name"]}.md', file['content'])
+                save_doc(path, file_name, data["token"])
+                pass
+            elif data['type'] == 'docx':
+                save_docx(path, file_name, data['token'])
+                pass
             elif data['type'] == 'sheet':
-                save_sheet(path, f'{data["name"]}.md', data['token'])
+                save_sheet(path, file_name, data['token'])
+                pass
             else:
                 print(f'Unsupported type: {data["type"]}')
 
