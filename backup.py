@@ -1,3 +1,4 @@
+from threading import Thread
 from typing import List
 import requests
 import sys
@@ -233,8 +234,33 @@ def save_docx(path, file_name, token):
             for text_run in block["text"]["elements"]:
                 text += text_run["text_run"]["content"]
             text += "\n"
+        elif block_type == 3:
+            # heading 1
+            text += "# "
+            for text_run in block["heading1"]["elements"]:
+                text += text_run["text_run"]["content"]
+            text += "\n"
+        elif block_type == 4:
+            # heading 2
+            text += "## "
+            for text_run in block["heading2"]["elements"]:
+                text += text_run["text_run"]["content"]
+            text += "\n"
+        elif block_type == 12:
+            # bullet
+            text += "- "
+            for text_run in block["bullet"]["elements"]:
+                text += text_run["text_run"]["content"]
+            text += "\n"
+        elif block_type == 13:
+            # ordered list
+            text += "1. "
+            for text_run in block["ordered"]["elements"]:
+                text += text_run["text_run"]["content"]
+            text += "\n"
         else:
             print(f"Unhandled block type {block_type}")
+            print(block)
 
     os.makedirs(f"{backup_path}{path}", exist_ok=True)
     with open(f"{backup_path}{path}/{file_name}", "w") as f:
@@ -297,6 +323,54 @@ def list_folder(path, token):
                 print(f'Unsupported type: {data["type"]}')
 
 
+def work(code):
+    resp = requests.post(
+        "https://open.feishu.cn/open-apis/authen/v1/access_token",
+        headers={"Authorization": f"Bearer {app_access_token}"},
+        json={"grant_type": "authorization_code", "code": code},
+    ).json()
+
+    global user_access_token
+    user_access_token = resp["data"]["access_token"]
+
+    # list documents
+    root_folder = get(
+        "https://open.feishu.cn/open-apis/drive/explorer/v2/root_folder/meta",
+        user_access_token,
+    )
+    folder_token = root_folder["token"]
+    # print(f'Found Root folder token: {folder_token}, id: {root_folder["id"]}')
+
+    list_folder("", folder_token)
+
+    # list wikis
+    # TODO: paging
+    wikis = get(
+        "https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=10",
+        user_access_token,
+    )
+    for item in wikis["items"]:
+        space_name = item["name"]
+        print(f"Found wiki space {space_name}")
+        space_id = item["space_id"]
+
+        # get nodes
+        nodes = get(
+            f"https://open.feishu.cn/open-apis/wiki/v2/spaces/{space_id}/nodes?page_size=10",
+            user_access_token,
+        )
+        for item in nodes["items"]:
+            if item["obj_type"] == "doc":
+                path = f"/知识库/{space_name}"
+                abs_path = f'{path}/{item["title"]}.md'
+                print(f"Downloading {abs_path}")
+                file = get(
+                    f'https://open.feishu.cn/open-apis/doc/v2/{item["obj_token"]}/content',
+                    user_access_token,
+                )
+                save_doc(path, f'{item["title"]}.md', file["content"])
+
+
 class Server(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -309,51 +383,8 @@ class Server(BaseHTTPRequestHandler):
             return
 
         code = code[0]
-        resp = requests.post(
-            "https://open.feishu.cn/open-apis/authen/v1/access_token",
-            headers={"Authorization": f"Bearer {app_access_token}"},
-            json={"grant_type": "authorization_code", "code": code},
-        ).json()
-
-        global user_access_token
-        user_access_token = resp["data"]["access_token"]
-
-        # list documents
-        root_folder = get(
-            "https://open.feishu.cn/open-apis/drive/explorer/v2/root_folder/meta",
-            user_access_token,
-        )
-        folder_token = root_folder["token"]
-        # print(f'Found Root folder token: {folder_token}, id: {root_folder["id"]}')
-
-        list_folder("", folder_token)
-
-        # list wikis
-        # TODO: paging
-        wikis = get(
-            "https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=10",
-            user_access_token,
-        )
-        for item in wikis["items"]:
-            space_name = item["name"]
-            print(f"Found wiki space {space_name}")
-            space_id = item["space_id"]
-
-            # get nodes
-            nodes = get(
-                f"https://open.feishu.cn/open-apis/wiki/v2/spaces/{space_id}/nodes?page_size=10",
-                user_access_token,
-            )
-            for item in nodes["items"]:
-                if item["obj_type"] == "doc":
-                    path = f"/知识库/{space_name}"
-                    abs_path = f'{path}/{item["title"]}.md'
-                    print(f"Downloading {abs_path}")
-                    file = get(
-                        f'https://open.feishu.cn/open-apis/doc/v2/{item["obj_token"]}/content',
-                        user_access_token,
-                    )
-                    save_doc(path, f'{item["title"]}.md', file["content"])
+        thread = Thread(target=work, args=(code,))
+        thread.start()
 
 
 if __name__ == "__main__":
