@@ -1,6 +1,8 @@
 from threading import Thread
 from typing import List
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 import sys
 import json
 import os
@@ -40,12 +42,18 @@ def init():
 
 
 def get(url, access_token):
-    resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}"})
-    json = resp.json()
-    if json["code"] != 0:
-        print(f"Request to {url} failed with: {json}")
-        sys.exit(1)
-    return json["data"]
+    # retry logic from https://gist.github.com/benjiao/28dc36bd87121b3273e0b3e079a8e8d8
+    retries = Retry()
+    with requests.Session() as s:
+        s.mount("http://", HTTPAdapter(max_retries=retries))
+        s.mount("https://", HTTPAdapter(max_retries=retries))
+
+        resp = s.get(url, headers={"Authorization": f"Bearer {access_token}"})
+        json = resp.json()
+        if json["code"] != 0:
+            print(f"Request to {url} failed with: {json}")
+            sys.exit(1)
+        return json["data"]
 
 
 state = "backup"
@@ -173,6 +181,21 @@ class Dumper:
             return ""
 
 
+def save_images(path: str, tokens: List[str]):
+    for token in tokens:
+        file_name = f"{token}.png"
+        file_path = f"{backup_path}{path}/{file_name}"
+        if os.path.exists(file_path):
+            continue
+        with open(f"{backup_path}{path}/{file_name}", "wb") as file:
+            url = f"https://open.feishu.cn/open-apis/drive/v1/medias/{token}/download"
+            print(f"Downloading image {token}")
+            resp = requests.get(
+                url, headers={"Authorization": f"Bearer {user_access_token}"}
+            )
+            file.write(resp.content)
+
+
 def save_doc(path, file_name, token):
     # fetch content
     file = get(
@@ -195,18 +218,7 @@ def save_doc(path, file_name, token):
     with open(f"{backup_path}{path}/{file_name}", "w") as f:
         f.write(text)
 
-    for token in dumper.image_tokens:
-        file_name = f"{token}.png"
-        file_path = f"{backup_path}{path}/{file_name}"
-        if os.path.exists(file_path):
-            continue
-        with open(f"{backup_path}{path}/{file_name}", "wb") as file:
-            url = f"https://open.feishu.cn/open-apis/drive/v1/medias/{token}/download"
-            print(f"Downloading image {token}")
-            resp = requests.get(
-                url, headers={"Authorization": f"Bearer {user_access_token}"}
-            )
-            file.write(resp.content)
+    save_images(path, dumper.image_tokens)
 
 
 def save_docx(path, file_name, token):
@@ -220,6 +232,7 @@ def save_docx(path, file_name, token):
 
     content = file["items"]
     text = ""
+    image_tokens = []
     for block in content:
         # https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/document-docx/docx-structure#2c5327a4
         block_type = block["block_type"]
@@ -258,6 +271,20 @@ def save_docx(path, file_name, token):
             for text_run in block["ordered"]["elements"]:
                 text += text_run["text_run"]["content"]
             text += "\n"
+        elif block_type == 14:
+            # code
+            text += "```\n"
+            for text_run in block["code"]["elements"]:
+                text += text_run["text_run"]["content"]
+            text += "\n"
+            text += "```\n"
+        elif block_type == 27:
+            image_token = block["image"]["token"]
+            image_tokens.append(image_token)
+
+            image_name = f"{image_token}.png"
+            text += f"![]({image_name})"
+            text += "\n"
         else:
             print(f"Unhandled block type {block_type}")
             print(block)
@@ -265,6 +292,7 @@ def save_docx(path, file_name, token):
     os.makedirs(f"{backup_path}{path}", exist_ok=True)
     with open(f"{backup_path}{path}/{file_name}", "w") as f:
         f.write(text)
+    save_images(path, image_tokens)
 
 
 def save_sheet(path, file_name, token):
