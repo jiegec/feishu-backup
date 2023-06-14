@@ -260,6 +260,12 @@ def save_docx(path, file_name, token):
             for text_run in block["heading2"]["elements"]:
                 text += text_run["text_run"]["content"]
             text += "\n"
+        elif block_type == 5:
+            # heading 3
+            text += "### "
+            for text_run in block["heading3"]["elements"]:
+                text += text_run["text_run"]["content"]
+            text += "\n"
         elif block_type == 12:
             # bullet
             text += "- "
