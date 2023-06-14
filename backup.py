@@ -245,7 +245,8 @@ def save_docx(path, file_name, token):
         elif block_type == 2:
             # text
             for text_run in block["text"]["elements"]:
-                text += text_run["text_run"]["content"]
+                if "text_run" in text_run:
+                    text += text_run["text_run"]["content"]
             text += "\n"
         elif block_type == 3:
             # heading 1
