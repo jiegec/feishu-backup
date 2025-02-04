@@ -445,5 +445,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     httpd.server_close()
-
-    code = input()
