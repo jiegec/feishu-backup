@@ -60,15 +60,13 @@ def get(url, access_token):
 
 def parse_time(data):
     if "timestamp" in data:
-        return datetime.fromtimestamp(
+        time = datetime.fromtimestamp(
             int(data["timestamp"]), ZoneInfo(data["timezone"])
         ).strftime("%Y%m%dT%H%M%S")
+        return f"TZID={data['timezone']}:{time}"
     else:
-        return (
-            datetime.strptime(data["date"], "%Y-%m-%d")
-            .replace(tzinfo=ZoneInfo(data["timezone"]))
-            .strftime("%Y%m%dT%H%M%S")
-        )
+        date = datetime.strptime(data["date"], "%Y-%m-%d").strftime("%Y%m%d")
+        return f"VALUE=DATE:{date}"
 
 
 state = "backup"
@@ -147,8 +145,8 @@ CREATED:{create_time}
 DTSTAMP:{create_time}
 UID:{event['event_id']}
 ORGANIZER;CN={event['event_organizer']['display_name']}
-DTSTART;TZID={event['start_time']['timezone']}:{start_time}
-DTEND;TZID={event['end_time']['timezone']}:{end_time}
+DTSTART;{start_time}
+DTEND;{end_time}
 SUMMARY:{event['summary']}
 END:VEVENT
 END:VCALENDAR""",
