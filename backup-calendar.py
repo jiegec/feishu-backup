@@ -136,6 +136,17 @@ def work(code):
                     ).strftime("%Y%m%dT%H%M%SZ")
                     start_time = parse_time(event["start_time"])
                     end_time = parse_time(event["end_time"])
+
+                    if "recurrence" in event and len(event['recurrence']) > 0:
+                        recurrence = f"\nRRULE:{event['recurrence']}"
+                    else:
+                        recurrence = ""
+
+                    if "location" in event and "name" in event["location"]:
+                        location = f"\nLOCATION:{event['location']['name']}"
+                    else:
+                        location = ""
+
                     print(
                         f"""BEGIN:VCALENDAR
 PRODID:-//Jiajie Chen///feishu-backup v1.0//EN
@@ -143,8 +154,7 @@ VERSION:2.0
 BEGIN:VEVENT
 CREATED:{create_time}
 DTSTAMP:{create_time}
-UID:{event['event_id']}
-ORGANIZER;CN={event['event_organizer']['display_name']}
+UID:{event['event_id']}{recurrence}{location}
 DTSTART;{start_time}
 DTEND;{end_time}
 SUMMARY:{event['summary']}
