@@ -7,6 +7,7 @@ import sys
 import json
 import os
 import argparse
+from datetime import datetime, timezone
 
 from urllib.parse import quote
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -56,6 +57,15 @@ def get(url, access_token):
         return json["data"]
 
 
+def parse_time(data):
+    if "timestamp" in data:
+        return datetime.fromtimestamp(int(data["timestamp"]), timezone.utc).strftime(
+            "%Y%m%dT%H%M%S"
+        )
+    else:
+        return datetime.strptime(data["date"], "%Y-%m-%d").strftime("%Y%m%dT%H%M%S")
+
+
 state = "backup"
 redirect_uri = quote("http://127.0.0.1:8888/backup")
 url = f"https://open.feishu.cn/open-apis/authen/v1/index?redirect_uri={redirect_uri}&app_id={app_id}&state={state}"
@@ -99,11 +109,42 @@ def work(code):
             print(f"Found {len(events)} events")
 
             for event in events:
+                # skip cancelled events
+                if event["status"] == "cancelled":
+                    continue
+
                 event_id = event["event_id"]
+                # save raw json
                 with open(
                     f"{backup_path}/calendar/{event_id}.json", "w", encoding="utf-8"
                 ) as file:
-                    print(event, file=file)
+                    print(json.dumps(event), file=file)
+
+                # save icalendar
+                with open(
+                    f"{backup_path}/calendar/{event_id}.ics", "w", encoding="utf-8"
+                ) as file:
+                    create_time = datetime.fromtimestamp(
+                        int(event["create_time"]), timezone.utc
+                    ).strftime("%Y%m%dT%H%M%SZ")
+                    start_time = parse_time(event["start_time"])
+                    end_time = parse_time(event["end_time"])
+                    print(
+                        f"""BEGIN:VCALENDAR
+PRODID:-//Jiajie Chen///feishu-backup v1.0//EN
+VERSION:2.0
+BEGIN:VEVENT
+CREATED:{create_time}
+DTSTAMP:{create_time}
+UID:{event['event_id']}
+ORGANIZER;CN={event['event_organizer']['display_name']}
+DTSTART;TZID={event['start_time']['timezone']}:{start_time}
+DTEND;TZID={event['end_time']['timezone']}:{end_time}
+SUMMARY:{event['summary']}
+END:VEVENT
+END:VCALENDAR""",
+                        file=file,
+                    )
 
             if data["has_more"]:
                 page_token = data["page_token"]
