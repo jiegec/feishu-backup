@@ -87,6 +87,10 @@ def work(code):
     global user_access_token
     user_access_token = resp["data"]["access_token"]
 
+    folder = f"{backup_path}/calendar"
+    os.makedirs(folder, exist_ok=True)
+    print(f"Output files are written to {folder}")
+
     # list calendars
     calendars = get(
         "https://open.feishu.cn/open-apis/calendar/v4/calendars?page_size=500",
