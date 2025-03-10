@@ -8,6 +8,7 @@ import json
 import os
 import argparse
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from urllib.parse import quote
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -59,11 +60,15 @@ def get(url, access_token):
 
 def parse_time(data):
     if "timestamp" in data:
-        return datetime.fromtimestamp(int(data["timestamp"]), timezone.utc).strftime(
-            "%Y%m%dT%H%M%S"
-        )
+        return datetime.fromtimestamp(
+            int(data["timestamp"]), ZoneInfo(data["timezone"])
+        ).strftime("%Y%m%dT%H%M%S")
     else:
-        return datetime.strptime(data["date"], "%Y-%m-%d").strftime("%Y%m%dT%H%M%S")
+        return (
+            datetime.strptime(data["date"], "%Y-%m-%d")
+            .replace(tzinfo=ZoneInfo(data["timezone"]))
+            .strftime("%Y%m%dT%H%M%S")
+        )
 
 
 state = "backup"
